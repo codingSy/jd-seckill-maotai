@@ -360,7 +360,9 @@ class JdSeckill(object):
                 self.request_seckill_url()
                 while True:
                     self.request_seckill_checkout_page()
-                    self.submit_seckill_order()
+                    submit_res = self.submit_seckill_order()
+                    if submit_res:
+                        return
             except Exception as e:
                 logger.info('抢购发生异常，稍后继续执行！', e)
             wait_some_time()
@@ -381,17 +383,18 @@ class JdSeckill(object):
         resp = self.session.get(url=url, params=payload, headers=headers)
         resp_json = parse_json(resp.text)
         reserve_url = resp_json.get('url')
-        self.timers.start()
+        url = 'https:' + reserve_url
+        logger.info('茅台预约url:{}'.format(url))
+        # self.timers.start()
         while True:
             try:
-                self.session.get(url='https:' + reserve_url)
-                logger.info('预约成功，已获得抢购资格 / 您已成功预约过了，无需重复预约')
-                if global_config.getRaw('messenger', 'enable') == 'true':
-                    success_message = "预约成功，已获得抢购资格 / 您已成功预约过了，无需重复预约"
-                    send_wechat(success_message)
+                yuyue_resp = self.session.get(url)
+                if "您已成功预约过了，无需重复预约" in yuyue_resp.text:
+                    logger.info('用户:{},预约成功，已获得抢购资格 / 您已成功预约过了，无需重复预约'.format(self.get_username()))
                 break
             except Exception as e:
                 logger.error('预约失败正在重试...')
+                wait_some_time()
 
     def get_username(self):
         """获取用户信息"""
@@ -463,8 +466,6 @@ class JdSeckill(object):
 
     def request_seckill_url(self):
         """访问商品的抢购链接（用于设置cookie等"""
-        logger.info('用户:{}'.format(self.get_username()))
-        logger.info('商品名称:{}'.format(self.get_sku_title()))
         self.timers.start()
         self.seckill_url[self.sku_id] = self.get_seckill_url()
         logger.info('访问商品的抢购连接...')
@@ -620,7 +621,7 @@ class JdSeckill(object):
             return True
         else:
             logger.info('抢购失败，返回信息:{}'.format(resp_json))
-            if global_config.getRaw('messenger', 'enable') == 'true':
-                error_message = '抢购失败，返回信息:{}'.format(resp_json)
-                send_wechat(error_message)
+            # if global_config.getRaw('messenger', 'enable') == 'true':
+            #     error_message = '抢购失败，返回信息:{}'.format(resp_json)
+            #     send_wechat(error_message)
             return False
